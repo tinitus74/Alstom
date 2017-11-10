@@ -14,6 +14,7 @@ class ControlHMI:
 	   we are waiting for
 	"""
 	#---------------------------------------------------------------------------------
+	# v0.0.4 10 Nov 2017 - add Tag Sharing Function
 	# V0.0.3 24 Oct 2017 - add Tag check function
 	# v0.0.2 19 Oct 2017 - check if imagePath exists
 	# v0.0.1 Oct. 2017   - first delivery POC - mutualize graphic control functions
@@ -24,69 +25,229 @@ class ControlHMI:
 		self.GF = graphicFunctionsCLass # Grphic Functions
 		self.report = ReportClass		# HTML Report
 		print "ControlHMI started v0.0.1 11/10/2017 (dd/mm/yyyy)"
-		if os.path.isdir(imagePath):
-			print ("image path exists")
-		else:print (" alstom.ControlHMI = error : image path does not exist: " + imagePath )
+		#if os.path.isdir(imagePath): TODO
+		#	print ("image path exists")
+		#else:print ("--> alstom.ControlHMI = error : image path does not exist: " + imagePath )
 	
-	def controlEscalator(self, objectRegion):
+	def controlEscalator(self, objectRegion, strEquipment):
 		"""This function to control an Escalator 
 			Forward on 
 			Forward OFF
 			Reverse on
 			Reverse Of
 			 """
-		
-		for x in range(1,5):
+		self.strEquipment = strEquipment
+		for x in range(1,5): #
 			click(objectRegion)	# Click on Escalator
+			
 			wait(1)	
 			if x ==1:
 				# ECP_Forward On
 				click(Region(1053,491,146,27))
-				imgMyImage = self.imagePath + '\\ECP_FON.png'
+				imgMyImage = self.imagePath + '\\escForwardOn.png'
 			elif x ==2:
 				# ECP_Forward Off
 				click(Region(1053,524,146,27))	
-				imgMyImage = self.imagePath + '\\ECP_OFF.png'
+				imgMyImage = self.imagePath + '\\escOFF.png'
 			elif x ==3:
 				# ECP_Reverse On
 				click(Region(1053,557,146,27))
-				imgMyImage = self.imagePath + '\\ECP_ROn.png'
+				imgMyImage = self.imagePath + '\\escReverseOn.png'
 			elif x ==4:
 				# ECP_Reverse Off
 				click(Region(1053,590,146,27))
-				imgMyImage = self.imagePath + '\\ECP_OFF.png'
+				imgMyImage = self.imagePath + '\\escOFF.png'
 
 			# Click Exectue and Close then check image
 			click(Region(1078,665,101,27))  # Execute
 			click(Region(1198,841,99,27))	# Close
 			#wait(1)
 			if x==2 or x== 4:
-				self.GF.findImageInRegionAndReport(objectRegion, imgMyImage,1,self.report)
+				#self.GF.findImageInRegionAndReport(objectRegion, self.imagePath + '\\LiftStop.png',1,self.report,  "For Stop " + strEquipment)
+				self.GF.findImageInRegionAndReport(objectRegion, imgMyImage,1,self.report, "For Stop" + strEquipment)
 			else:
-				self.GF.findImageInRegionAndReport(objectRegion, imgMyImage,1,self.report)
+				if x==1:
+					self.GF.findImageInRegionAndReport(objectRegion, imgMyImage,1,self.report, "For Forward ON " + strEquipment)
+				else:
+					self.GF.findImageInRegionAndReport(objectRegion, imgMyImage,1,self.report, "For Reverse ON " + strEquipment)
+
 		
 		# Check Tag
 		click(objectRegion)	# Click on Escalator
 		wait(1)
-		reg = Region(1055,620,146,27)
-		self.tagTest(reg)
-		click(Region(1198,841,99,27))	# Close
-	
-	def tagTest(self, tagRegion):
-		"""This function to create a tag, verify tag is present, delete tag
-		   input TagRegion is the region of the Tag Button for the equipment"""
-		
-		#TagZONE			268	485		674	92
-		#TagCheck1		278	495		13	13
-		#TagCheck2		278	526		13	13
-		#TagCheck3		278	557		13	13
-		#NameTextBox		419	309		175	25
-		#NotesTextBox	419	349		519	40
-		#TypeListBox		419	401		276	20
-		#TagBtn			617	604		81	26
-		#ReleaseTagBtn	738	604		81	26
-		#CloseBtn		865	604		81	26"""
+		regBtnTag  = Region(1055,620,146,26) # define "Tagging" button region
+		regBtnExectue = Region(1077,662,101,26) # define "Exexute" button region
+		regTagStatus  = Region(759, 620, 178,26) # define "Tag Status" region on control panel
+		self.tagTest(regBtnTag, regBtnExectue, regTagStatus, "ESC")
 
+		click(Region(1198,841,99,27))	# Close
+
+	def controlCB(self, objectRegion):
+		for x in range(1,3):
+			click(objectRegion)	# Click on CB
+			wait(1)
+ 
+			# Click on Start ----- 1 = OPEN / 2 = CLOSE
+			self.report.addLine('Test CB OPEN' + str(x))
+			if x == 1:
+				click(Region(1135,506,181,26))
+			else:
+				click(Region(1042,541,181,26))
+				click(Region(1200,384,81,26)) # Click on Confirm	
+			wait(1)
+
+			# Click on Execute 
+			click(Region(1082,626,101,26))
+			wait(1)
+
+			# Click on Close 
+			click(Region(1042,541,181,26))
+			wait(1)
+		
+		# check Tag
+		click(objectRegion)	# Click on CB
+		wait(1)
+		reg = Region(1055,593,146,27)
+		self.tagTest(reg)
+		# Click on Close 
+		click(Region(1198,841,99,27))
+
+	def tagSharing(self, tagRegion1, tagRegion2, strEquipment):
+		""" This function to tag an object and control if the tag is present on a second object
+			tagRegion1 is the region of the 1st object to click
+			tagRegion is for the 2nd object
+			strEquipment indicates wich equipments are used for this function
+			working only for type ESC & LIFT
+		"""
+		# -----------------------------------------------------------
+		# Tag an object ESC or LCP
+		# select another object ESC or LCP
+		# control if second object is tagged with the same mention
+		# if yes : tag sharing is positive => this is an error
+		# untag the first object ! 
+		# -----------------------------------------------------------
+		print "Tag Sharing Control initiated..."
+		
+		for x in range(1,3):
+			# click on object
+			if x ==1:
+				click(tagRegion1)	
+			else:
+				click(tagRegion2)
+			wait(1)
+
+			# find the type
+			self.tObject = None 
+			strToFind =  str.replace(Region(629, 408, 101, 24).text()," ","")
+			if strToFind[:16] =='Escalatorcontrol':
+				print 'This is an Escalator'
+				self.closeRegion = Region(1198,841,99,27)	# Close
+				self.tObject = "ESC"
+				self.tagStatus = Region(755,621,186,32)
+				self.tagButton = Region(1057,624,146,29) #Region(759,626,83,19)
+				self.ExecuteButton = Region(1077,665,100,26)
+			elif strToFind[:11] =='Liftcontrol':
+				print 'This is a Lift'
+				self.closeRegion = Region(1198,841,99,27)   # Close
+				self.tObject = "LCP"
+				self.tagStatus = Region(754,579,186,32)
+				self.tagButton = Region(1055,599,145,23)
+				self.ExecuteButton = Region(1077,652,100,26)
+			else:
+				print "Type of object not detected"
+				break
+			wait(1)
+
+			# Confirm 1st object is not tagged...
+			if x ==1:
+				self.typeOfObjectOne = self.tObject
+				if str.replace(self.tagStatus.text(),' ','')=='Nottagged':
+					blTagOk = True
+					print 'OK = Initial condition : first object is not tagged'
+					# let's tag it
+					click(self.tagButton)
+					#click Execute button
+					click(self.ExecuteButton)
+
+					#Enter Text on Name Textbox
+					click(Region(419,309,175,25))
+					type('Tag Sharing Test')
+					type(Key.ENTER)
+
+					#enter Text on Notes Textbox
+					click(Region(419,349,519,40))
+					type('Tag Sharing Test Notes')
+					type(Key.ENTER)
+
+					#click Tag
+					click(Region(617,604,81,26))
+
+					#click Tag Close button
+					click(Region(865,604,81,26))
+
+				else:
+					print 'NOK = Initial condition : Tag is already Tagged'
+					print " found >" + str.replace(regTagStatus.text(),' ','') + "<"
+					break
+			if x ==2:
+				# check if tag is shared !
+				click(self.tagButton)
+				#click Execute button
+				click(self.ExecuteButton)	
+				wait(1)
+				strToCompare=Region(303,490,630,86).text()
+				print strToCompare
+				if strToCompare.find("Tag Sharing Test")> -1:
+					print "Big problem Tag is shared !!!"
+				else:
+					print "No problem, no tag sharing"
+				#click Tag Close Button
+				click(Region(865,604,81,26))
+
+			click(self.closeRegion)
+
+		# Step 3  ----------------------  Delete TAG
+
+		if self.typeOfObjectOne == "ESC":
+			print "first was ESC"
+			self.closeRegion = Region(1198,841,99,27)	# Close
+			self.tagStatus = Region(755,621,186,32)
+			self.tagButton = Region(1057,624,146,29) #Region(759,626,83,19)
+			self.ExecuteButton = Region(1077,665,100,26)
+		elif self.typeOfObjectOne == "LCP":
+			print "first was LCP"
+			self.closeRegion = Region(1198,841,99,27)   # Close
+			self.tagStatus = Region(754,579,186,32)
+			self.tagButton = Region(1055,599,145,23)
+			self.ExecuteButton = Region(1077,652,100,26)
+
+		click(tagRegion1)	
+		click(self.tagButton)
+		click(self.ExecuteButton)
+
+		wait(1)
+		#doucleclick on first checkbox
+		reg=(Region(278,495,13,13))
+		doubleClick(reg)
+		wait(1)
+
+		#click ReleaseTag Button
+		reg=(Region(738,604,81,26))
+		doubleClick(reg)
+
+		#click Tag Close button
+		click(Region(865,604,81,26))
+		click(self.closeRegion)
+
+
+	
+	def tagTest(self, tagRegion, executeRegion, regTagStatus, tagObject):
+		"""This function to create a tag, verify tag is present, delete tag
+		   input tagRegion     is the Tag     Button for the equipment
+		         executeRegion is the Execute Button region 
+				 tagStatus is the text zone region on ECP control panel
+				 tagObject is the kind of object ie ESC LIFT..."""
+		
 		# TAG control system
 		# 0/ Test Initial condition: Not Tagged
 		# 1/ Enter a tag
@@ -96,20 +257,36 @@ class ControlHMI:
 
 		# Step 1 ----------------------------- Enter TAG 
 
-		# Test initial condition NOT TAGGED
-		if str.replace(Region(Region(758,579,178,25)).text(),' ','')=='Nottagged':
-			print 'OK = Initial condition : Tag is not tagged'
+		
+		
+		# Defining the TAG button & Tag Status Text zone depending on object type
+		self.textStatusX2 = 182
+		self.textStatusY2 = 26
+
+		# Test initial condition NOT TAGGED, sometimes the status needs delay to be present on the HMI
+		blTagOk = False 
+		for x in range (1,5):
+			if str.replace(regTagStatus.text(),' ','')=='Nottagged':
+				blTagOk = True
+				print 'OK = Initial condition : Tag is not tagged'
+				break
+			else:
+				print 'NOK = Initial condition : Tag is already Tagged'
+				print " found >" + str.replace(regTagStatus.text(),' ','') + "<"
+				
+			wait(.5)
+		if blTagOk == True:
+			self.message = ["Initial condition OK:Not Tagged ", " " ,"OK", "For Create TAG " + self.strEquipment]
+			self.report.addLine(self.message)
 		else:
-			print 'NOK = Initial condition : Tag is already Tagged'
-			
+			self.message = ["Initial condition NOK: already Tagged ", " " ,"NOK", "For Create TAG initial condition false " + self.strEquipment]
+			self.report.addLine(self.message)
+		
 
 		# click Device Tag button
-		reg=(Region(1055,593,144,26))
-		click(reg)
-
+		click(tagRegion)
 		#click Execute button
-		reg=(Region(1077,649,101,26))
-		click(reg)
+		click(executeRegion)
 
 		#Enter Text on Name Textbox
 		click(Region(419,309,175,25))
@@ -130,31 +307,29 @@ class ControlHMI:
 
 		# Step 2 -  Control TAG is here
 		# click Device Tag button
-		reg=(Region(1055,593,144,26))
-		click(reg)
-
+		click(tagRegion)
 		#click Execute button
-		reg=(Region(1077,649,101,26))
-		click(reg)
+		click(executeRegion)
 
 		# Step 2  ----------------------  CONTROL TAG IS Present
 		wait(1)
 		if str.replace(Region(520,484,214,31).text(),' ','')=='TagNoteTest':
 			print 'OK = Tag is tagged'
+			self.message = ["Tag text found in region ", " " ,"OK", "For Create TAG " + self.strEquipment]
+			self.report.addLine(self.message)
 		else:
+			self.message = ["Tag text NOT found in region ", " " ,"NOK", "For Release TAG " + self.strEquipment]
 			print 'NOK = Tag not found'
+			self.report.addLine(self.message)
 		#click Close
 		click(Region(865,604,81,26))
 
 
 		# Step 3  ----------------------  Delete TAG
 		# click Device Tag button
-		reg=(Region(1055,593,144,26))
-		click(reg)
-
+		click(tagRegion)
 		#click Execute button
-		reg=(Region(1077,649,101,26))
-		click(reg)
+		click(executeRegion)
 
 		wait(1)
 		#doucleclick on first checkbox
@@ -169,39 +344,44 @@ class ControlHMI:
 
 		# Step 4  ----------------------  Check Final condition = Not tagged
 		wait(3)
-		if str.replace(Region(Region(758,579,178,25)).text(),' ','')=='Nottagged':
-			print 'OK = after tag release Tag is not tagged'
+		if str.replace(regTagStatus.text(),' ','')=='Nottagged':
+			self.message = ["Tag released OK ", " " ,"OK", self.strEquipment]
+			self.report.addLine(self.message)
 		else:
 			print 'NOK = after tag release Tag is still Tagged'
-
-
-
+			self.message = ["Tag is Not released correctly", " " ,"NOK", self.strEquipment]
+			self.report.addLine(self.message)
 
 	
-	def controlLift(self, objectRegion):
-		"""This function to control a lift with these oprations
-			Start
-			- click on the object then a window appear
-			- clic on Start button
-			- click on Execute button
-			- click on Close button
-			- verify the image liftOFF.png
+	def controlLift(self, objectRegion, strEquipment):
+		"""This function to control a lift 
+			objectRegion define where is the lift
+			strMessage contains the name of the lift
+		"""
+		#with these oprations
+		#	Start
+		#	- click on the object then a window appear
+		#	- clic on Start button
+		#	- click on Execute button
+		#	- click on Close button
+		#	- verify the image liftOFF.png
 
-			Stop
-			- click on the object then a window appear
-			- clic on Stop button
-			- click on Confirm button
-			- click on Execute button
-			- click on Close button
-			- verify the image liftOFF.png
-			 """
+		#	Stop
+		#	- click on the object then a window appear
+		#	- clic on Stop button
+		#	- click on Confirm button
+		#	- click on Execute button
+		#	- click on Close button
+		#	- verify the image liftOFF.png
+
+		self.strEquipment = strEquipment
 		
 		for x in range(1,3):
 			click(objectRegion)	# Click on LIFT 
 			wait(1)
  
 			# Click on Start ----- 1 = Start / 2 = Stop
-			self.report.addLine('Test LIFT Start' + str(x))
+			# self.report.addLine('Test LIFT Start' + str(x))
 			if x == 1:
 				click(Region(1056,511,146,27))
 			else:
@@ -217,17 +397,21 @@ class ControlHMI:
 			click(Region(1198,841,99,27))
 			wait(1)
 			if x==1:
-				self.report.addLine('Test LIFT Start')
-				self.GF.findImageInRegionAndReport(objectRegion, self.imagePath + '\\LiftStart.png',1,self.report)
+				#self.report.addLine('Test LIFT Start')
+				
+				self.GF.findImageInRegionAndReport(objectRegion, self.imagePath + '\\LiftStart.png',1,self.report, "For Start " + strEquipment)
 			else:
-				self.report.addLine('Test LIFT Stop')
-				self.GF.findImageInRegionAndReport(objectRegion, self.imagePath + '\\LiftStop.png',1,self.report)
+				#self.report.addLine('Test LIFT Stop')
+				self.GF.findImageInRegionAndReport(objectRegion, self.imagePath + '\\LiftStop.png',1,self.report,  "For Stop " + strEquipment)
 		
 		# check Tag
 		click(objectRegion)	# Click on Escalator
 		wait(1)
-		reg = Region(1055,593,146,27)
-		self.tagTest(reg)
+		regBtnTag  = Region(1055,595,146,26) # define "Tagging" button region
+		regBtnExectue = Region(1077,649,101,26) # define "Exexute" button region
+		regTagStatus  = Region(756,581,180,23) # define "Tag Status" region on control panel
+		self.tagTest(regBtnTag, regBtnExectue, regTagStatus, "ESC")
+		
 		# Click on Close 
 		click(Region(1198,841,99,27))
 
@@ -256,7 +440,7 @@ class GraphicFunctions:
 		except:
 			return False
 
-	def findImageInRegionAndReport(self, region, imagePath, imageSimilarity, report):
+	def findImageInRegionAndReport(self, region, imagePath, imageSimilarity, report, objMessage):
 		""" This function to find an image in a region
 			input : region, 
 					imagePath to find 
@@ -270,44 +454,98 @@ class GraphicFunctions:
 		"""	
 		try:
 			match = region.find(imagePath)
-			report.addLine(" - Image found " + imagePath )
+			self.message = ["Region Find", imagePath,"OK", objMessage]
+			report.addLine(self.message)
 			return True
 		except:
-			report.addLine("<font color=red> - ERROR ! Image not found " + imagePath  + " on region " + str(region) + "</font>")
+			self.message = ["Region Find", imagePath,"NOK", objMessage]
+			report.addLine(self.message)
 			return False
 
 			
 
 class HTMLReport:
-    """HTML Report Generator Class """
+    """HTML Report Generator Class ' A LA ACTIS DRIVE '
+	   PathReport = complete path for the html report"""
 	#----------------------------------------------------------------------
 	# v0.0.4 19-10-2017 check if pathReport exists
 	# v0.0.3 11-10-2017 added date to time in the first line of the rapport
 	# v0.0.2 10-10-2017 bug corrections
 	# v0.0.1 October 2017 - first delivery POC
 	#----------------------------------------------------------------------
+
 	
-    def __init__(self, pathReport):
+    def __init__(self, pathReport, reportTitle=None, versionProcedure=None):
 		# define some things to do at the init
 		# WARNING : please use / to declare pathReport instead of \
-		print "HTMLReport class started v0.0.3 10/10/2017"
-		if os.path.isdir(pathReport):
-			print ("image path exists")
-		else:print ("error : image path does not exist: " + pathReport )
-
-		self.html_str = "<hr>"
-		self.html_str = self.html_str + "<b>Automagically test tarting at </b>" + time.strftime('%d-%m-%Y %H:%M:%S')
-		self.html_str = self.html_str + "<hr>"
-		self.pathReport = pathReport
 		
-    def addLine(self, stringToAdd):
-        try:
-			self.html_str = self.html_str + time.strftime('%H:%M:%S') + ' - '  + stringToAdd + "<br>"
-        except:
+		print "HTMLReport class started v0.0.3 10/10/2017"
+		self.reportTitle="Test Actis Drive"
+		self.reportTitle = reportTitle
+		self.versionProcedure = versionProcedure
+		# TODO : check path
+		#if os.path.isdir(pathReport):
+		#	print ("image path exists")
+		#else:print ("HTMLReport error : image path does not exist: " + pathReport )
+		
+		
+		
+		# ---- Generate the Report Header 
+		#self.html_str = "<hr>"
+		#self.html_str = self.html_str + "<b>Automagically test tarting at </b>" + time.strftime('%d-%m-%Y %H:%M:%S')
+		#self.html_str = self.html_str + "<hr>"
+		self.pathReport = pathReport
+
+		# Header starts here
+		self.html_str = "<html lang='en'>"
+		self.html_str = self.html_str + "<head>"
+		self.html_str = self.html_str + "<meta charset='utf-8'" + chr(47) + "><title>" 
+		self.html_str = self.html_str + self.reportTitle
+		self.html_str = self.html_str + "<" + chr(47) + "title><link href='results.css' rel='stylesheet' " + chr(47) + "><script src='results.js'><" + chr(47) + "script>"
+		self.html_str = self.html_str + "<" + chr(47) + "head>"
+		
+		# Body starts here
+		self.html_str = self.html_str + "<body><h1>" + self.reportTitle + "<" + chr(47) + "h1>"
+        # Buttons generation
+		self.html_str = self.html_str + "<div>"
+		self.html_str = self.html_str + "<input class='displayOptionButton' onclick='displayOnlyTests();' type='button' value='Display OK and NOK'" + chr(47) + ">"
+		self.html_str = self.html_str + "<input class='displayOptionButton' onclick='displayOnlyTestsNOK();' type='button' value='Display Only NOK'" + chr(47) + ">"
+		self.html_str = self.html_str + "<input class='displayOptionButton' onclick='displayAll();' type='button' value='Display All'" + chr(47) + ">"
+		self.html_str = self.html_str + "<input type='hidden' value='2' " + chr(47) + ">"
+		self.html_str = self.html_str + "<" + chr(47) + "div>"        
+		self.html_str = self.html_str + "<h2>Versions<" +chr(47)+"h2><table><tr" +chr(47)+ "><tr " +chr(47)+ "><" + chr(47) + "table><br " + chr(47) 
+		self.html_str = self.html_str + "><br " + chr(47) + "><br " + chr(47) + ">"
+		self.html_str = self.html_str + "<h2>Procedure:<" + chr(47) + "h2>"
+		
+		
+		# Start the procedure table
+		self.html_str = self.html_str + "<table id='procedures'><tr><td class='tableHeader'>"
+		self.html_str = self.html_str + "Date<" + chr(47) + "td><td class='tableHeader'>Instruction<" + chr(47) + "td><td class='tableHeader'>Result<" + chr(47) 
+		self.html_str = self.html_str + "td><td class='tableHeader'>Comments<" + chr(47) + "td><" + chr(47) + "tr><tr>"
+		
+    def addLine(self, Message = []):
+		print Message
+		try:
+			# self.html_str = self.html_str + time.strftime('%H:%M:%S') + ' - '  + stringToAdd + "<br>"
+			self.html_str = self.html_str + "<td class='result' colspan='1'>"
+			self.html_str = self.html_str + time.strftime("%Y-%m-%d %H:%M:%S") 
+			self.html_str = self.html_str + "<" + chr(47) + "td><td class='result' colspan='1'>"
+			self.html_str = self.html_str + Message[0] 
+			self.html_str = self.html_str + "<img src='file:" + Message[1] + "' alt='F1.png'" 
+			self.html_str = self.html_str + "align='middle' width='29' height='58' " + chr(47) + ">" 
+			self.html_str = self.html_str + Message[1] + "<" + chr(47) + "td>"
+			if Message[2]=="OK":
+				self.html_str = self.html_str + "<td class='statusOK'>OK<" + chr(47) + "td><td class='result_res'>" 
+			else:
+				self.html_str = self.html_str + "<td class='statusNOK'>NOK<" + chr(47) + "td><td class='result_res'>"
+			self.html_str = self.html_str + Message[3] + "<" + chr(47) + "td><" + chr(47) + "tr><tr>"
+		except:
 			self.html_str = self.html_str + time.strftime('%H:%M:%S') + " error trying addLine"  
+		
+		# </html>
 
     def writeReport(self):
-        print "writeReport OK"
-        self.html_file = open(self.pathReport,'w+')
-        self.html_file.write (self.html_str)
-        self.html_file.close()
+		self.html_str = self.html_str + "<" + chr(47) + "table><" + chr(47) + "body>"
+		self.html_file = open(self.pathReport,'w+')
+		self.html_file.write (self.html_str)
+		self.html_file.close()
